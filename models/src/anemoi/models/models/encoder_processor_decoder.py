@@ -65,6 +65,7 @@ class AnemoiModelEncProcDec(nn.Module):
         model_config = DotDict(model_config)
         self._graph_name_data = model_config.graph.data
         self._graph_name_hidden = model_config.graph.hidden
+        self._graph_name_output = model_config.graph.get("data_out", model_config.graph.data)
         self.multi_step = model_config.training.multistep_input
         self.num_channels = model_config.model.num_channels
 
@@ -113,9 +114,9 @@ class AnemoiModelEncProcDec(nn.Module):
             in_channels_dst=self.input_dim,
             hidden_dim=self.num_channels,
             out_channels_dst=self.num_output_channels,
-            sub_graph=self._graph_data[(self._graph_name_hidden, "to", self._graph_name_data)],
+            sub_graph=self._graph_data[(self._graph_name_hidden, "to", self._graph_name_output)],
             src_grid_size=self.node_attributes.num_nodes[self._graph_name_hidden],
-            dst_grid_size=self.node_attributes.num_nodes[self._graph_name_data],
+            dst_grid_size=self.node_attributes.num_nodes[self._graph_name_output],
         )
 
         # Instantiation of model output bounding functions (e.g., to ensure outputs like TP are positive definite)
@@ -358,6 +359,11 @@ class AnemoiModelEncProcDec(nn.Module):
         x_hidden_latent = self.node_attributes(self._graph_name_hidden, batch_size=batch_size)
         shard_shapes_hidden = get_shard_shapes(x_hidden_latent, 0, model_comm_group)
 
+        x_target_latent = self.node_attributes(self._graph_name_output, batch_size=batch_size)
+        shard_shapes_target = get_shard_shapes(x_target_latent, 0, model_comm_group)
+
+
+        print(self._graph_data, self.encoder, self.decoder)
         # Encoder
         x_data_latent, x_latent = self._run_mapper(
             self.encoder,
@@ -384,9 +390,9 @@ class AnemoiModelEncProcDec(nn.Module):
         # Decoder
         x_out = self._run_mapper(
             self.decoder,
-            (x_latent_proc, x_data_latent),
+            (x_latent_proc, x_target_latent),
             batch_size=batch_size,
-            shard_shapes=(shard_shapes_hidden, shard_shapes_data),
+            shard_shapes=(shard_shapes_hidden, shard_shapes_target),
             model_comm_group=model_comm_group,
             x_src_is_sharded=True,  # x_latent always comes sharded
             x_dst_is_sharded=in_out_sharded,  # x_data_latent comes sharded iff in_out_sharded

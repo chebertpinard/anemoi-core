@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 
 from anemoi.datasets.data import open_dataset
 from anemoi.models.data_indices.collection import IndexCollection
-from anemoi.training.data.dataset import NativeGridDataset
+from anemoi.training.data.dataset import NativeGridDataset, CombinedNativeGridDataset
 from anemoi.training.schemas.base_schema import BaseSchema
 from anemoi.training.utils.worker_init import worker_init_func
 from anemoi.utils.dates import frequency_to_seconds
@@ -169,8 +169,13 @@ class AnemoiDatasetsDataModule(pl.LightningDataModule):
 
     @cached_property
     def ds_train(self) -> NativeGridDataset:
+        if "target" in self.config.dataloader.training:
+            target_reader = open_dataset(self.config.dataloader.training.pop("target"))
+        else:
+            target_reader = None
         return self._get_dataset(
             open_dataset(self.config.dataloader.training),
+            target_reader,
             label="train",
         )
 
@@ -182,8 +187,13 @@ class AnemoiDatasetsDataModule(pl.LightningDataModule):
                 self.config.dataloader.training.end,
                 self.config.dataloader.validation.start,
             )
+        if "target" in self.config.dataloader.validation:
+            target_reader = open_dataset(self.config.dataloader.validation.pop("target"))
+        else:
+            target_reader = None
         return self._get_dataset(
             open_dataset(self.config.dataloader.validation),
+            target_reader,
             shuffle=False,
             val_rollout=self.config.dataloader.validation_rollout,
             label="validation",
@@ -199,8 +209,13 @@ class AnemoiDatasetsDataModule(pl.LightningDataModule):
             f"Validation end date {self.config.dataloader.validation.end} is not before"
             f"test start date {self.config.dataloader.test.start}"
         )
+        if "target" in self.config.dataloader.test:
+            target_reader = open_dataset(self.config.dataloader.test.pop("target"))
+        else:
+            target_reader = None
         return self._get_dataset(
             open_dataset(self.config.dataloader.test),
+            target_reader,
             shuffle=False,
             label="test",
         )
@@ -208,12 +223,25 @@ class AnemoiDatasetsDataModule(pl.LightningDataModule):
     def _get_dataset(
         self,
         data_reader: Callable,
+        data_reader_out: Callable = None,
         shuffle: bool = True,
         val_rollout: int = 1,
         label: str = "generic",
     ) -> NativeGridDataset:
 
         data_reader = self.add_trajectory_ids(data_reader)  # NOTE: Functionality to be moved to anemoi datasets
+        if data_reader_out is not None:
+            data_reader_out = self.add_trajectory_ids(data_reader_out)
+
+            return CombinedNativeGridDataset(
+                data_reader=data_reader,
+                data_reader_out=data_reader_out,
+                relative_date_indices=self.relative_date_indices(val_rollout),
+                timestep=self.config.data.timestep,
+                shuffle=shuffle,
+                grid_indices=self.grid_indices,
+                label=label,
+            )
 
         return NativeGridDataset(
             data_reader=data_reader,

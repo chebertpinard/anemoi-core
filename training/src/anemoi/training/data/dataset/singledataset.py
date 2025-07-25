@@ -312,3 +312,80 @@ class NativeGridDataset(IterableDataset):
             Dataset: {self.data}
             Relative dates: {self.relative_date_indices}
         """
+
+class CombinedNativeGridDataset(NativeGridDataset):
+    def __init__(
+        self,
+        data_reader: Callable,
+        data_reader_out: Callable,
+        grid_indices: type[BaseGridIndices],
+        relative_date_indices: list,
+        timestep: str = "6h",
+        shuffle: bool = True,
+        label: str = "generic",
+    ) -> None:
+        
+        super().__init__(
+            data_reader=data_reader,
+            grid_indices=grid_indices,
+            relative_date_indices=relative_date_indices,
+            timestep=timestep,
+            shuffle=shuffle,
+            label=label
+        )
+
+        self.data_out = data_reader_out
+
+    def __iter__(self) -> torch.Tensor:
+        if self.shuffle:
+            shuffled_chunk_indices = self.rng.choice(
+                self.valid_date_indices,
+                size=len(self.valid_date_indices),
+                replace=False,
+            )[self.chunk_index_range]
+        else:
+            shuffled_chunk_indices = self.valid_date_indices[self.chunk_index_range]
+
+        LOGGER.debug(
+            (
+                "Worker pid %d, label %s, worker id %d, global_rank %d, "
+                "model comm group %d, group_rank %d, seed comm group id %d, using indices[0:10]: %s"
+            ),
+            os.getpid(),
+            self.label,
+            self.worker_id,
+            self.global_rank,
+            self.model_comm_group_id,
+            self.model_comm_group_rank,
+            self.sample_comm_group_id,
+            shuffled_chunk_indices[:10],
+        )
+
+        for i in shuffled_chunk_indices:
+            start = i + self.relative_date_indices[0]
+            end = i + self.relative_date_indices[-1]
+            timeincrement = self.relative_date_indices[1] - self.relative_date_indices[0]
+            # NOTE: this is temporary until anemoi datasets allows indexing with arrays or lists
+            # data[start...] will be replaced with data[self.relative_date_indices + i]
+
+            grid_shard_indices = self.grid_indices.get_shard_indices(self.reader_group_rank)
+            if isinstance(grid_shard_indices, slice):
+                # Load only shards into CPU memory
+                x = self.data[start:end:timeincrement, :, :, grid_shard_indices]
+                y = self.data_out[end-1:end, :, :, grid_shard_indices]
+
+            else:
+                # Load full grid in CPU memory, select grid_shard after
+                # Note that anemoi-datasets currently doesn't support slicing + indexing
+                # in the same operation.
+                x = self.data[start:end:timeincrement, :, :, :]
+                x = x[..., grid_shard_indices]  # select the grid shard
+
+                y = self.data_out[end - 1:timeincrement, :, :, :]
+                y = y[..., grid_shard_indices]  # select the grid shard
+
+            x = rearrange(x, "dates variables ensemble gridpoints -> dates ensemble gridpoints variables")
+            y = rearrange(y, "dates variables ensemble gridpoints -> dates ensemble gridpoints variables")
+            self.ensemble_dim = 1
+
+            yield torch.from_numpy(x), torch.from_numpy(y)

@@ -57,6 +57,8 @@ class BaseGraphSchema(PydanticBaseModel):
     "Key name for the data nodes. Default to 'data'."
     hidden: Union[str, list[str]] = Field(example="hidden")
     "Key name for the hidden nodes. Default to 'hidden'."
+    data_out: str = Field(default="data")
+    "Key name for the output data nodes. Default to data"
     # TODO(Helen): Needs to be adjusted for more complex graph setups
 
     @model_validator(mode="after")

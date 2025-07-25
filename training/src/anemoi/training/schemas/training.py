@@ -379,5 +379,9 @@ class InterpolationSchema(BaseTrainingSchema):
     target_forcing: TargetForcing
     "Forcing parameters for target output times."
 
+class DownscalerSchema(BaseTrainingSchema):
+    model_task: Literal["anemoi.training.train.forecaster.GraphDownscaler",] = Field(..., alias="model_task")
+    "Training objective."
 
-TrainingSchema = Union[ForecasterSchema, ForecasterEnsSchema, InterpolationSchema]
+
+TrainingSchema = Union[ForecasterSchema, ForecasterEnsSchema, InterpolationSchema, DownscalerSchema]

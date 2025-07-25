@@ -94,6 +94,7 @@ class BaseMapper(nn.Module, ABC):
         Tuple[Tensor, Tensor, Tuple[int], Tuple[int]]
             Source nodes, destination nodes, sharded source node shapes, sharded destination node shapes
         """
+        print(shard_shapes, x[0].shape, x[1].shape)
         shapes_src, shapes_dst = shard_shapes
         x_src, x_dst = x
         return x_src, x_dst, shapes_src, shapes_dst
