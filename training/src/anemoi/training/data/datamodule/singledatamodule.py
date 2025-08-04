@@ -140,6 +140,18 @@ class AnemoiDatasetsDataModule(pl.LightningDataModule):
         return grid_indices
 
     @cached_property
+    def grid_indices_target(self) -> type[BaseGridIndices]:
+        reader_group_size = self.config.dataloader.read_group_size
+
+        grid_indices_target = instantiate(
+            self.config.dataloader.grid_indices_target,
+            reader_group_size=reader_group_size,
+        )
+        grid_indices_target.setup(self.graph_data)
+        return grid_indices_target
+
+
+    @cached_property
     def timeincrement(self) -> int:
         """Determine the step size relative to the data frequency."""
         try:
@@ -240,6 +252,7 @@ class AnemoiDatasetsDataModule(pl.LightningDataModule):
                 timestep=self.config.data.timestep,
                 shuffle=shuffle,
                 grid_indices=self.grid_indices,
+                grid_indices_target=self.grid_indices_target,
                 label=label,
             )
 

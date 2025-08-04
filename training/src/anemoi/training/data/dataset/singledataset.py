@@ -319,6 +319,7 @@ class CombinedNativeGridDataset(NativeGridDataset):
         data_reader: Callable,
         data_reader_out: Callable,
         grid_indices: type[BaseGridIndices],
+        grid_indices_target: type[BaseGridIndices],
         relative_date_indices: list,
         timestep: str = "6h",
         shuffle: bool = True,
@@ -335,6 +336,7 @@ class CombinedNativeGridDataset(NativeGridDataset):
         )
 
         self.data_out = data_reader_out
+        self.grid_indices_target = grid_indices_target
 
     def __iter__(self) -> torch.Tensor:
         if self.shuffle:
@@ -369,10 +371,12 @@ class CombinedNativeGridDataset(NativeGridDataset):
             # data[start...] will be replaced with data[self.relative_date_indices + i]
 
             grid_shard_indices = self.grid_indices.get_shard_indices(self.reader_group_rank)
+            grid_shard_target = self.grid_indices_target.get_shard_indices(self.reader_group_rank)
+
             if isinstance(grid_shard_indices, slice):
                 # Load only shards into CPU memory
                 x = self.data[start:end:timeincrement, :, :, grid_shard_indices]
-                y = self.data_out[end-1:end, :, :, grid_shard_indices]
+                y = self.data_out[end-1:end, :, :, grid_shard_target]
 
             else:
                 # Load full grid in CPU memory, select grid_shard after
@@ -381,11 +385,11 @@ class CombinedNativeGridDataset(NativeGridDataset):
                 x = self.data[start:end:timeincrement, :, :, :]
                 x = x[..., grid_shard_indices]  # select the grid shard
 
-                y = self.data_out[end - 1:timeincrement, :, :, :]
-                y = y[..., grid_shard_indices]  # select the grid shard
+                y = self.data_out[end-1:timeincrement, :, :, :]
+                y = y[..., grid_shard_target]  # select the grid shard
 
             x = rearrange(x, "dates variables ensemble gridpoints -> dates ensemble gridpoints variables")
             y = rearrange(y, "dates variables ensemble gridpoints -> dates ensemble gridpoints variables")
             self.ensemble_dim = 1
 
-            yield torch.from_numpy(x), torch.from_numpy(y)
+            yield torch.from_numpy(x), torch.from_numpy(y[0])

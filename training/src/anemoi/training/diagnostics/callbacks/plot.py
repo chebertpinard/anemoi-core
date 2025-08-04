@@ -869,9 +869,9 @@ class PlotLoss(BasePerBatchPlotCallback):
 
         for rollout_step in range(pl_module.rollout):
             y_hat = outputs[1][rollout_step]
-            y_true = batch[
+            y_true = batch[1][
                 :,
-                pl_module.multi_step + rollout_step,
+                0, #pl_module.multi_step + rollout_step,
                 ...,
                 pl_module.data_indices.data.output.full,
             ]

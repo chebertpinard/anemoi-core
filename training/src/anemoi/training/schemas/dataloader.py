@@ -132,3 +132,4 @@ class DataLoaderSchema(PydanticBaseModel):
     "Number of GPUs per reader group. Defaults to number of GPUs (see BaseSchema validators)."
     grid_indices: Union[FullGridIndicesSchema, MaskedGridIndicesSchema]
     "Grid indice schema."
+    grid_indices_target: Union[FullGridIndicesSchema, MaskedGridIndicesSchema] = Field(default=None)

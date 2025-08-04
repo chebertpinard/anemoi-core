@@ -58,6 +58,8 @@ class TrainableParameters(PydanticBaseModel):
     "Size of the learnable data node tensor. Default to 8."
     hidden: NonNegativeInt = Field(example=8)
     "Size of the learnable hidden node tensor. Default to 8."
+    data_out: NonNegativeInt = Field(example=0)
+    "Size of the learnable output node tensor. Default to 0."
 
 
 class ReluBoundingSchema(BaseModel):

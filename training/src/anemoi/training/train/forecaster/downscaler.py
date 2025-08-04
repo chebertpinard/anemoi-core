@@ -11,7 +11,7 @@
 import logging
 from collections.abc import Mapping
 from operator import itemgetter
-
+from hydra.utils import instantiate
 import torch
 from omegaconf import DictConfig
 from torch.utils.checkpoint import checkpoint
@@ -67,6 +67,13 @@ class GraphDownscaler(GraphForecaster):
             supporting_arrays=supporting_arrays,
         )
 
+        reader_group_size = self.config.dataloader.read_group_size
+        self.grid_indices = instantiate(
+            self.config.model_dump(by_alias=True).dataloader.grid_indices_target,
+            reader_group_size=reader_group_size,
+        )
+        self.grid_indices.setup(graph_data)
+
     def _step(
         self,
         batch: torch.Tensor,
@@ -76,7 +83,6 @@ class GraphDownscaler(GraphForecaster):
 
         del batch_idx
 
-        loss = torch.zeros(1, dtype=batch[0].dtype, device=self.device, requires_grad=False)
         metrics = {}
         y_preds = []
 
@@ -99,12 +105,11 @@ class GraphDownscaler(GraphForecaster):
                 y_pred,
                 y,
                 0,
-                training_mode=training_mode,
+                training_mode=True,
                 validation_mode=validation_mode,
                 use_reentrant=False,
         )
 
-        loss += loss_step
         metrics.update(metrics_next)
         y_preds.append(y_pred)
 
@@ -133,4 +138,5 @@ class GraphDownscaler(GraphForecaster):
             raise NotImplementedError("Sharding strategy for downscaling not implemented yet")
 
         return batch
+
 

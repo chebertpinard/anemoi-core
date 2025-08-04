@@ -548,7 +548,7 @@ class GraphForecaster(pl.LightningModule):
             on_step=True,
             prog_bar=True,
             logger=self.logger_enabled,
-            batch_size=batch.shape[0],
+            batch_size=batch[0].shape[0],
             sync_dist=True,
         )
         self.log(
@@ -602,7 +602,7 @@ class GraphForecaster(pl.LightningModule):
             on_step=True,
             prog_bar=True,
             logger=self.logger_enabled,
-            batch_size=batch.shape[0],
+            batch_size=batch[0].shape[0],
             sync_dist=True,
         )
 
@@ -614,7 +614,7 @@ class GraphForecaster(pl.LightningModule):
                 on_step=False,
                 prog_bar=False,
                 logger=self.logger_enabled,
-                batch_size=batch.shape[0],
+                batch_size=batch[0].shape[0],
                 sync_dist=True,
             )
 

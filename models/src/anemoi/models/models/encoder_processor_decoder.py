@@ -69,10 +69,16 @@ class AnemoiModelEncProcDec(nn.Module):
         self.multi_step = model_config.training.multistep_input
         self.num_channels = model_config.model.num_channels
 
-        self.node_attributes = NamedNodesAttributes(model_config.model.trainable_parameters.hidden, self._graph_data)
+        if self._graph_name_output != self._graph_name_data:
+            model_config.model.trainable_parameters[self._graph_name_output] = len(data_indices.model.output) 
+
+        self.node_attributes = NamedNodesAttributes(model_config.model.trainable_parameters, self._graph_data)
 
         self._calculate_shapes_and_indices(data_indices)
         self._assert_matching_indices(data_indices)
+
+#        if self._graph_name_output != self._graph_name_data:
+#            self.node_attributes.register_tensor(self._graph_name_output, self.output_dim)
 
         # we can't register these as buffers because DDP does not support sparse tensors
         # these will be moved to the GPU when first used via sefl.interpolate_down/interpolate_up
@@ -111,7 +117,7 @@ class AnemoiModelEncProcDec(nn.Module):
             model_config.model.decoder,
             _recursive_=False,  # Avoids instantiation of layer_kernels here
             in_channels_src=self.num_channels,
-            in_channels_dst=self.input_dim,
+            in_channels_dst=self.output_dim,
             hidden_dim=self.num_channels,
             out_channels_dst=self.num_output_channels,
             sub_graph=self._graph_data[(self._graph_name_hidden, "to", self._graph_name_output)],
@@ -215,8 +221,9 @@ class AnemoiModelEncProcDec(nn.Module):
             .clone()
         )
 
-        # residual connection (just for the prognostic variables)
-        x_out[..., self._internal_output_idx] += x_skip[..., self._internal_input_idx]
+        if self.input_dim == self.output_dim:
+            # residual connection (just for the prognostic variables)
+            x_out[..., self._internal_output_idx] += x_skip[..., self._internal_input_idx]
 
         for bounding in self.boundings:
             # bounding performed in the order specified in the config file
@@ -232,6 +239,7 @@ class AnemoiModelEncProcDec(nn.Module):
         self.input_dim = (
             self.multi_step * self.num_input_channels + self.node_attributes.attr_ndims[self._graph_name_data]
         )
+        self.output_dim = self.node_attributes.attr_ndims[self._graph_name_output]
 
     def _assert_matching_indices(self, data_indices: dict) -> None:
         assert len(self._internal_output_idx) == len(data_indices.model.output.full) - len(
@@ -362,8 +370,6 @@ class AnemoiModelEncProcDec(nn.Module):
         x_target_latent = self.node_attributes(self._graph_name_output, batch_size=batch_size)
         shard_shapes_target = get_shard_shapes(x_target_latent, 0, model_comm_group)
 
-
-        print(self._graph_data, self.encoder, self.decoder)
         # Encoder
         x_data_latent, x_latent = self._run_mapper(
             self.encoder,
