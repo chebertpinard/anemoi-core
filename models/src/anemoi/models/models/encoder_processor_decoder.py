@@ -77,9 +77,6 @@ class AnemoiModelEncProcDec(nn.Module):
         self._calculate_shapes_and_indices(data_indices)
         self._assert_matching_indices(data_indices)
 
-#        if self._graph_name_output != self._graph_name_data:
-#            self.node_attributes.register_tensor(self._graph_name_output, self.output_dim)
-
         # we can't register these as buffers because DDP does not support sparse tensors
         # these will be moved to the GPU when first used via sefl.interpolate_down/interpolate_up
         self.A_down, self.A_up = None, None

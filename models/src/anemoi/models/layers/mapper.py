@@ -936,6 +936,13 @@ class GNNBackwardMapper(BackwardMapperPostProcessMixin, GNNBaseMapper):
         )
 
         self.offload_layers(cpu_offload)
+        self.emb_nodes_dst = MLP(
+            in_features=in_channels_dst,
+            hidden_dim=hidden_dim,
+            out_features=hidden_dim,
+            layer_kernels=self.layer_factory,
+            n_extra_layers=mlp_extra_layers,
+        )
 
         self.node_data_extractor = MLP(
             in_features=self.hidden_dim,
@@ -951,6 +958,8 @@ class GNNBackwardMapper(BackwardMapperPostProcessMixin, GNNBaseMapper):
         x_src, x_dst, shapes_src, shapes_dst = super().pre_process(
             x, shard_shapes, model_comm_group, x_src_is_sharded, x_dst_is_sharded
         )
+        if not self.hidden_dim in x_dst.shape:
+            x_dst = self.emb_nodes_dst(x_dst)
         shapes_src = change_channels_in_shape(shapes_src, self.hidden_dim)
         shapes_dst = change_channels_in_shape(shapes_dst, self.hidden_dim)
         return x_src, x_dst, shapes_src, shapes_dst
